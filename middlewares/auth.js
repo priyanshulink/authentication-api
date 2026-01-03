@@ -1,32 +1,72 @@
 // auth, isStudent, isAdmin
 
 const jwt = require("jsonwebtoken");
+const TokenBlacklist = require("../model/TokenBlacklist");
+const { loadKeys } = require("../utils/generateKeys");
 require('dotenv').config();
 
-exports.auth = (req,res,next)=>{
-    try{
-//extract jwt token
-console.log("cookies", req.cookies.priyanshu);
-console.log("body", req.body.token);
-        const token = req.body.token || req.cookies.priyanshu || (req.header("Authorization") ? req.header("Authorization").replace("Bearer ", "") : null);
+// Load RSA keys for RS256 verification
+let publicKey;
+try {
+    const keys = loadKeys();
+    publicKey = keys.publicKey;
+} catch (error) {
+    console.warn("⚠️  RSA keys not found. Using HS256 verification.");
+}
 
-        if(!token){
+exports.auth = async (req,res,next)=>{
+    try{
+        //extract jwt token
+        const authHeader = req.headers.authorization;
+        
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
             return res.status(401).json({
                 success:false,
-                message:'Token missing',
+                message:'No token provided',
             })
+        }
+
+        const token = authHeader.split(" ")[1];
+
+        // Check if token is blacklisted
+        const blacklisted = await TokenBlacklist.findOne({ token });
+        if (blacklisted) {
+            return res.status(401).json({
+                success: false,
+                message: 'Token has been revoked. Please login again.'
+            });
         }
 
         //verify the token 
         try{
-            const decode = jwt.verify(token, process.env.JWT_SECRET);
-            console.log(decode);
+            let decoded;
+            
+            // Try RS256 first if public key is available
+            if (publicKey) {
+                try {
+                    decoded = jwt.verify(token, publicKey, { algorithms: ['RS256'] });
+                } catch (rsError) {
+                    // Fall back to HS256 if RS256 fails
+                    decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, { algorithms: ['HS256'] });
+                }
+            } else {
+                // Use HS256 if no public key
+                decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, { algorithms: ['HS256'] });
+            }
+            
+            console.log(decoded);
 
-            req.user = decode;// this line is improtent for access the role.
+            req.user = {
+                id: decoded.userId,
+                role: decoded.role,
+                clientId: decoded.clientId || null, // For SSO tokens
+                aud: decoded.aud,
+                iss: decoded.iss
+            };
         }catch(error){
             return res.status(401).json({
                 success:false,
-                message:'token is invalid',
+                message:'Token expired or invalid',
             })
         }
 
