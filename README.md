@@ -20,6 +20,7 @@ Complete authentication and authorization system with JWT tokens, 2FA, OAuth2/SS
 - ✅ **JWT Authentication** - Access tokens (15 min) + Refresh tokens (7 days)
 - ✅ **User Registration** - Signup with email verification
 - ✅ **Secure Login** - bcrypt password hashing (10 rounds)
+- ✅ **Mobile OTP Authentication** - SMS-based login with OTP
 - ✅ **Token Refresh** - Automatic token renewal
 - ✅ **Logout** - Token revocation with blacklist
 
@@ -99,6 +100,12 @@ JWT_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\nYourPublicKey\n-----END PUBLIC KEY---
 # Email Configuration (Gmail)
 EMAIL_USER=your-email@gmail.com
 EMAIL_PASS=your-app-specific-password
+
+# SMS Configuration (Optional - for production)
+# TWILIO_ACCOUNT_SID=your-twilio-account-sid
+# TWILIO_AUTH_TOKEN=your-twilio-auth-token
+# TWILIO_PHONE_NUMBER=+1234567890
+# OR use AWS SNS, MSG91, or any SMS provider
 
 # Frontend URL (for CORS and email links)
 FRONTEND_URL=http://localhost:3000
@@ -202,6 +209,46 @@ POST /api/v1/login-2fa
 }
 ```
 
+#### Mobile OTP Authentication
+```bash
+# Register mobile number (authenticated users)
+POST /api/v1/mobile/register
+Authorization: Bearer YOUR_TOKEN
+{
+  "mobile": "9876543210",
+  "countryCode": "+91"
+}
+
+# Verify mobile OTP
+POST /api/v1/mobile/verify
+Authorization: Bearer YOUR_TOKEN
+{
+  "otp": "123456"
+}
+
+# Send login OTP
+POST /api/v1/mobile/send-login-otp
+{
+  "mobile": "9876543210",
+  "countryCode": "+91"
+}
+
+# Login with mobile OTP
+POST /api/v1/mobile/login
+{
+  "mobile": "9876543210",
+  "otp": "123456",
+  "countryCode": "+91"
+}
+
+# Resend OTP
+POST /api/v1/mobile/resend-otp
+{
+  "mobile": "9876543210",
+  "countryCode": "+91"
+}
+```
+
 #### OAuth2 Flow
 ```bash
 # 1. Authorize (redirect to this URL)
@@ -247,6 +294,8 @@ authentication/
 │   ├── Auth.js              # Login/signup
 │   ├── RefreshToken.js      # Token refresh/logout
 │   ├── EmailVerification.js # Email verify/password reset
+│   ├── MobileOTP.js         # Mobile OTP authentication
+│   ├── TwoFactor.js         # 2FA setup/verify
 │   ├── TwoFactor.js         # 2FA management
 │   ├── OAuth.js             # OAuth2 flow
 │   ├── ClientManagement.js  # OAuth client CRUD
@@ -268,7 +317,8 @@ authentication/
 │   └── user.js              # All API routes
 ├── utils/
 │   ├── auditLogger.js       # Centralized logging
-│   └── emailService.js      # Email sending
+│   ├── emailService.js      # Email sending
+│   └── smsService.js        # SMS/OTP sending
 ├── tests/
 │   └── security.test.js     # Security test suite
 ├── docs/
