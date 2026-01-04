@@ -65,6 +65,33 @@ const userSchema = mongoose.Schema({
     accountLocked: {
         type: Boolean,
         default: false
+    },
+    // Mobile authentication fields
+    mobile: {
+        type: String,
+        sparse: true,
+        trim: true
+    },
+    countryCode: {
+        type: String,
+        default: '+91'
+    },
+    isMobileVerified: {
+        type: Boolean,
+        default: false
+    },
+    mobileOTP: {
+        type: String
+    },
+    mobileOTPExpires: {
+        type: Date
+    },
+    mobileOTPAttempts: {
+        type: Number,
+        default: 0
+    },
+    lastOTPSentAt: {
+        type: Date
     }
 });
 

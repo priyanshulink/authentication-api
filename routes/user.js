@@ -10,6 +10,7 @@ const {unlockAccount, checkLockStatus} = require("../controller/AccountLock");
 const {authorize, token, getPublicKey, jwks} = require("../controller/OAuth");
 const {registerClient, getClient, listClients, updateClient, deleteClient, regenerateSecret} = require("../controller/ClientManagement");
 const {getMyLogs, getAllLogs, getSecurityEvents, getUserLogs, cleanOldLogs, getStatistics} = require("../controller/AuditLogController");
+const {registerMobile, verifyMobileOTP, sendLoginOTP, loginWithMobileOTP, resendOTP} = require("../controller/MobileOTP");
 const {auth, isStudent, isAdmin} = require("../middlewares/auth");
 const {loginLimiter, otpLimiter, passwordResetLimiter, signupLimiter, apiLimiter} = require("../middlewares/rateLimiter");
 const {hasPermission, hasAnyPermission, hasAllPermissions, hasRole} = require("../middlewares/permissions");
@@ -884,5 +885,185 @@ router.get("/audit/statistics", auth, hasPermission("users:manage"), getStatisti
  *         description: Admin only
  */
 router.delete("/audit/clean", auth, hasPermission("users:manage"), cleanOldLogs);
+
+// ===========================
+// Mobile OTP Authentication Routes
+// ===========================
+
+/**
+ * @swagger
+ * /api/v1/mobile/register:
+ *   post:
+ *     tags: [Mobile Authentication]
+ *     summary: Register mobile number
+ *     description: Add mobile number to user account and send verification OTP
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [mobile]
+ *             properties:
+ *               mobile:
+ *                 type: string
+ *                 example: "9876543210"
+ *               countryCode:
+ *                 type: string
+ *                 default: "+91"
+ *                 example: "+91"
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *       400:
+ *         description: Invalid mobile number or already registered
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/mobile/register", auth, otpLimiter, registerMobile);
+
+/**
+ * @swagger
+ * /api/v1/mobile/verify:
+ *   post:
+ *     tags: [Mobile Authentication]
+ *     summary: Verify mobile OTP
+ *     description: Verify the OTP sent to mobile number
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [otp]
+ *             properties:
+ *               otp:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Mobile verified successfully
+ *       400:
+ *         description: Invalid or expired OTP
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/mobile/verify", auth, otpLimiter, verifyMobileOTP);
+
+/**
+ * @swagger
+ * /api/v1/mobile/send-login-otp:
+ *   post:
+ *     tags: [Mobile Authentication]
+ *     summary: Send login OTP to mobile
+ *     description: Send OTP to registered mobile number for login
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [mobile]
+ *             properties:
+ *               mobile:
+ *                 type: string
+ *                 example: "9876543210"
+ *               countryCode:
+ *                 type: string
+ *                 default: "+91"
+ *                 example: "+91"
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *       400:
+ *         description: Invalid mobile number
+ *       423:
+ *         description: Account locked
+ *       429:
+ *         description: Rate limit exceeded
+ */
+router.post("/mobile/send-login-otp", otpLimiter, sendLoginOTP);
+
+/**
+ * @swagger
+ * /api/v1/mobile/login:
+ *   post:
+ *     tags: [Mobile Authentication]
+ *     summary: Login with mobile OTP
+ *     description: Authenticate user with mobile number and OTP
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [mobile, otp]
+ *             properties:
+ *               mobile:
+ *                 type: string
+ *                 example: "9876543210"
+ *               otp:
+ *                 type: string
+ *                 example: "123456"
+ *               countryCode:
+ *                 type: string
+ *                 default: "+91"
+ *                 example: "+91"
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 accessToken:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *       401:
+ *         description: Invalid credentials
+ *       423:
+ *         description: Account locked
+ */
+router.post("/mobile/login", loginLimiter, loginWithMobileOTP);
+
+/**
+ * @swagger
+ * /api/v1/mobile/resend-otp:
+ *   post:
+ *     tags: [Mobile Authentication]
+ *     summary: Resend OTP
+ *     description: Resend OTP to mobile number (rate limited to 1 per minute)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [mobile]
+ *             properties:
+ *               mobile:
+ *                 type: string
+ *                 example: "9876543210"
+ *               countryCode:
+ *                 type: string
+ *                 default: "+91"
+ *                 example: "+91"
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *       429:
+ *         description: Rate limit - wait before requesting again
+ */
+router.post("/mobile/resend-otp", otpLimiter, resendOTP);
 
 module.exports = router;
